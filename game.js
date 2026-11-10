@@ -165,11 +165,12 @@
     screen_(el('div', { class: 'hero' }, [
       el('span', { class: 'date-chip', text: `${prettyDate(DAY.date)} · Day ${dayIdx + 1}` }),
       el('h1', { text: 'Three clues. One answer.' }),
-      el('p', { class: 'tagline', text: `Today's ${['', 'one', 'two', 'three', 'four'][SETS.length] || SETS.length} puzzles. The sooner you get it, the more you score.` }),
-    ]), el('ul', { class: 'rules' }, [
-      el('li', {}, ['Get it on clue 1 for ', el('b', { text: '15' }), ', clue 2 for ', el('b', { text: '10' }), ', clue 3 for ', el('b', { text: '5' }), '.']),
-      el('li', { text: 'Tap the next clue to open it. A wrong guess opens it too.' }),
-      el('li', {}, ['Stuck after clue 3? Pick from four options for ', el('b', { text: '2' }), '.']),
+      el('p', { class: 'tagline', text: `${cap(['', 'one', 'two', 'three', 'four'][SETS.length] || String(SETS.length))} puzzles today. In each one, three clues point to the same thing. Name it.` }),
+    ]), exampleCard(), el('ol', { class: 'rules' }, [
+      el('li', { text: "Read clue 1 and type your guess. Spelling doesn't have to be perfect." }),
+      el('li', { text: 'Not sure? Tap clue 2 for another hint, then clue 3.' }),
+      el('li', {}, ['The fewer clues you need, the more you score: ', el('b', { text: '15' }), ', ', el('b', { text: '10' }), ' or ', el('b', { text: '5' }), ' points.']),
+      el('li', {}, ['Still stuck after clue 3? Pick from four choices for ', el('b', { text: '2' }), ' points.']),
     ]), el('button', {
       class: 'btn primary block', text: going ? 'Carry on' : "Play today's puzzles",
       onclick: () => {
@@ -178,6 +179,21 @@
         renderSet();
       },
     }));
+  }
+
+  function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
+
+  // A made-up practice set (not from the puzzle bank) that shows how the clues work.
+  function exampleCard() {
+    return el('div', { class: 'example' }, [
+      el('div', { class: 'ex-head', text: 'For example' }),
+      el('div', { class: 'ex-clues' }, [
+        el('span', { class: 'ex-clue' }, [el('small', { text: 'Clue 1' }), 'Mumtaz']),
+        el('span', { class: 'ex-clue' }, [el('small', { text: 'Clue 2' }), 'Yamuna']),
+        el('span', { class: 'ex-clue' }, [el('small', { text: 'Clue 3' }), 'Agra']),
+      ]),
+      el('div', { class: 'ex-answer' }, ['Answer: ', el('b', { text: 'Taj Mahal' })]),
+    ]);
   }
 
   function shuffledOptions(set) {
@@ -208,13 +224,14 @@
         el('span', { class: 'muted', text: `Puzzle ${state.setIdx + 1} of ${SETS.length}` }),
         el('span', { class: 'pts', text: `Worth ${worth}` }),
       ]),
+      el('p', { class: 'ask', text: 'What do the clues point to?' }),
       ...clues,
     ];
     if (state.optionsShown) {
       kids.push(el('p', { class: 'muted small', text: `Pick one for ${CONFIG.OPTION_POINTS} points.` }));
       kids.push(el('div', { class: 'options' }, shuffledOptions(set).map((o) => el('button', { class: 'option', text: o, onclick: () => pickOption(o) }))));
     } else {
-      const input = el('input', { type: 'text', id: 'guess', placeholder: 'Your answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'go', 'aria-label': 'Your answer' });
+      const input = el('input', { type: 'text', id: 'guess', placeholder: 'Type your answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'go', 'aria-label': 'Your answer' });
       const form = el('form', { class: 'guess', onsubmit: (e) => { e.preventDefault(); guess(input.value); } }, [
         input, el('button', { class: 'btn primary', type: 'submit', text: 'Guess' }),
       ]);

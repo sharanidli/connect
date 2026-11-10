@@ -64,6 +64,15 @@ h2 { font-size: 26px; }
 .hero .tagline { font-size: 19px; color: var(--muted); margin-bottom: 24px; }
 .rules { background: var(--card); border-radius: var(--radius); padding: 14px 18px; margin: 18px 0; }
 .rules li { margin: 4px 0; }
+.rules { padding-left: 36px; }
+.example { border: 1.5px solid var(--line); border-radius: var(--radius); padding: 12px 14px; margin: 14px 0 0; }
+.ex-head { font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--muted); margin-bottom: 8px; }
+.ex-clues { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.ex-clue { display: flex; flex-direction: column; background: var(--card); border-radius: 10px; padding: 6px 8px; font-weight: 600; font-size: 15px; }
+.ex-clue small { font-size: 11px; font-weight: 700; letter-spacing: 0.5px; text-transform: uppercase; color: var(--blue); }
+.ex-answer { margin-top: 8px; font-size: 15px; }
+.ex-answer b { color: var(--crimson); }
+.ask { margin: 0 0 10px; font-weight: 600; }
 .date-chip { display: inline-block; border: 1px solid var(--line); border-radius: 999px; padding: 4px 12px; font-size: 14px; color: var(--muted); }
 
 /* Puzzle */
