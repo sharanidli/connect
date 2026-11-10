@@ -192,31 +192,52 @@
     return all;
   }
 
+  // An opened clue card. Earlier clues are compact; wrong guesses show under the clue they were made on.
+  function clueCard(text, i, cls, guesses) {
+    const misses = guesses.filter((g) => g.clue === i + 1 && !g.right);
+    return el('div', { class: `clue ${cls}` }, [
+      el('div', { class: 'label', text: `Clue ${i + 1}` }),
+      el('div', { text }),
+      ...misses.map((g) => el('div', { class: 'miss', text: `\u2717 ${g.text}` })),
+    ]);
+  }
+
+  // Bring the given element fully into view (after a re-render, and again once a phone keyboard has closed).
+  function keepInView(sel) {
+    const go = () => { const t = $(sel); if (t) t.scrollIntoView({ block: 'nearest' }); };
+    go(); setTimeout(go, 350);
+  }
+
   function renderSet(feedback = '') {
     const set = SETS[state.setIdx];
     const worth = state.optionsShown ? CONFIG.OPTION_POINTS : CONFIG.POINTS[state.clue - 1];
-    // Shown clues; the next hidden clue is a card you tap to open; later ones wait their turn.
-    const clues = set.clues.map((text, i) => {
-      if (i < state.clue) return el('div', { class: 'clue' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text })]);
-      if (i === state.clue && !state.optionsShown) {
-        return el('button', { class: 'clue locked next', type: 'button', onclick: () => nextClue('tapped_card') }, [
-          el('div', { class: 'label', text: `Clue ${i + 1}` }),
-          el('div', { class: 'hint', text: `Tap to open · worth ${CONFIG.POINTS[i]}` }),
-        ]);
-      }
-      return el('div', { class: 'clue locked' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text: `Opens after clue ${i}` })]);
+    // Opened clues first, then the answer box right under the newest clue, then the clues still to come.
+    const opened = set.clues.slice(0, state.clue).map((text, i) => {
+      const latest = i === state.clue - 1;
+      return clueCard(text, i, latest ? (state.clue > 1 ? 'latest fresh' : 'latest') : 'older', state.guesses);
     });
+    const upcoming = [];
+    if (!state.optionsShown) {
+      for (let i = state.clue; i < set.clues.length; i++) {
+        upcoming.push(i === state.clue
+          ? el('button', { class: 'clue locked next', type: 'button', onclick: () => nextClue('tapped_card') }, [
+            el('div', { class: 'label', text: `Clue ${i + 1}` }),
+            el('div', { class: 'hint', text: `Tap to open \u00b7 worth ${CONFIG.POINTS[i]}` }),
+          ])
+          : el('div', { class: 'clue locked' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text: `Opens after clue ${i}` })]));
+      }
+    }
     const kids = [
       el('div', { class: 'puzzle-head' }, [
         el('span', { class: 'muted', text: `Puzzle ${state.setIdx + 1} of ${SETS.length}` }),
         el('span', { class: 'pts', text: `Worth ${worth}` }),
       ]),
       el('p', { class: 'ask', text: 'What do the clues point to?' }),
-      ...clues,
+      ...opened,
     ];
     if (state.optionsShown) {
       kids.push(el('p', { class: 'muted small', text: `Pick one for ${CONFIG.OPTION_POINTS} points.` }));
-      kids.push(el('div', { class: 'options' }, shuffledOptions(set).map((o) => el('button', { class: 'option', text: o, onclick: () => pickOption(o) }))));
+      kids.push(el('div', { class: 'options', id: 'options' }, shuffledOptions(set).map((o) => el('button', { class: 'option', text: o, onclick: () => pickOption(o) }))));
     } else {
       const input = el('input', { type: 'text', id: 'guess', placeholder: 'Type your answer here', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'go', 'aria-label': 'Your answer' });
       const form = el('form', { class: 'guess', onsubmit: (e) => { e.preventDefault(); guess(input.value); } }, [
@@ -224,12 +245,15 @@
       ]);
       kids.push(form);
       kids.push(el('div', { class: 'feedback', id: 'feedback', text: feedback }));
+      kids.push(...upcoming);
       if (state.clue === 3) {
         kids.push(el('button', { class: 'btn ghost block', text: `Show four options (worth ${CONFIG.OPTION_POINTS})`, onclick: () => showOptions('asked') }));
       }
     }
     kids.push(el('div', { class: 'center' }, el('button', { class: 'link', text: 'Give up and see the answer', onclick: giveUp })));
     screen_(...kids);
+    if (state.optionsShown) keepInView('#options');
+    else if (state.clue > 1) keepInView('#feedback');
     const inp = $('#guess');
     if (inp && device === 'desktop') inp.focus();
   }
@@ -279,6 +303,7 @@
 
   function finishSet(result, points) {
     const set = SETS[state.setIdx];
+    const guesses = state.guesses;
     const msSet = Math.round(performance.now() - tSet);
     state.results.push({ id: set.id, result, points, guesses: state.guesses, ms: msSet });
     log('set_done', { result: HOW[result], points, guesses_n: state.guesses.length, ms_set: msSet });
@@ -294,17 +319,18 @@
     const verdict = result === 0 ? 'Not this time' : result === 4 ? `With the options · +${points}` : `Got it on clue ${result} · +${points}`;
     screen_(
       el('div', { class: 'puzzle-head' }, [el('span', { class: 'muted', text: `Puzzle ${setNo} of ${SETS.length}` }), el('span')]),
-      ...set.clues.map((text, i) => el('div', { class: 'clue' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text })])),
+      ...set.clues.map((text, i) => clueCard(text, i, 'older', guesses)),
       el('div', { class: `reveal r${result}` }, [
         el('div', { class: 'verdict', text: verdict }),
         el('div', { class: 'answer', text: set.answer }),
         el('div', { class: 'why', text: set.explanation }),
       ]),
       el('button', {
-        class: 'btn primary block', text: last ? 'See your score' : 'Next puzzle',
+        class: 'btn primary block', id: 'next-btn', text: last ? 'See your score' : 'Next puzzle',
         onclick: () => { if (last) renderResults(); else { tSet = performance.now(); tClue = performance.now(); renderSet(); } },
       }),
     );
+    keepInView('#next-btn');
   }
 
   function shareText() {

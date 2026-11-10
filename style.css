@@ -79,6 +79,10 @@ h2 { font-size: 26px; }
   background: var(--bg); animation: rise 0.35s ease-out;
 }
 .clue .label { font-size: 13px; font-weight: 700; letter-spacing: 0.6px; text-transform: uppercase; color: var(--blue); margin-bottom: 4px; }
+.clue.older { padding: 10px 14px; font-size: 15px; line-height: 1.4; animation: none; }
+.clue.older .label { font-size: 12px; margin-bottom: 2px; }
+.clue.fresh { border: 2px solid var(--blue); }
+.miss { margin-top: 6px; color: var(--crimson); font-weight: 600; font-size: 14px; }
 .clue.locked { background: var(--card); color: var(--muted); border-style: dashed; animation: none; }
 .clue.locked .label { color: var(--muted); }
 button.clue { display: block; width: 100%; text-align: left; font: inherit; }
@@ -87,7 +91,7 @@ button.clue { display: block; width: 100%; text-align: left; font: inherit; }
 .clue.next:active { transform: scale(0.99); background: #eceef1; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
-.guess { display: flex; gap: 8px; margin: 14px 0 8px; }
+.guess { display: flex; gap: 8px; margin: 12px 0 6px; }
 .guess input {
   flex: 1; min-width: 0; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: 12px;
   border: 2.5px solid var(--ink); background: #fff; outline: none; min-height: 56px;
