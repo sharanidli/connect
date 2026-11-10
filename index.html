@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Connect: three clues, one answer</title>
+  <meta name="description" content="Two puzzles a day. Three clues, one answer. Get it on the first clue for full points.">
+  <meta property="og:title" content="Connect">
+  <meta property="og:description" content="Two puzzles a day. Three clues, one answer.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M14 46 32 14 50 46Z' fill='none' stroke='%23b0103a' stroke-width='5' stroke-linejoin='round'/%3E%3Ccircle cx='14' cy='46' r='8' fill='%23b0103a'/%3E%3Ccircle cx='32' cy='14' r='8' fill='%231d4f91'/%3E%3Ccircle cx='50' cy='46' r='8' fill='%23b0103a'/%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 64 64" aria-hidden="true">
+        <path d="M14 46 32 14 50 46Z" fill="none" stroke="currentColor" stroke-width="4" stroke-linejoin="round"/>
+        <circle cx="14" cy="46" r="7" class="dot-a"/><circle cx="32" cy="14" r="7" class="dot-b"/><circle cx="50" cy="46" r="7" class="dot-a"/>
+      </svg>
+      <span class="wordmark">Connect</span>
+    </div>
+    <button id="help-btn" class="icon-btn" aria-label="How to play">?</button>
+  </header>
+
+  <main id="app" aria-live="polite"></main>
+
+  <dialog id="help">
+    <h2>How to play</h2>
+    <p>Each day brings <b>two puzzles</b>. Each one has <b>three clues to one answer</b>, revealed one at a time.</p>
+    <ul>
+      <li>Guess after clue 1 for <b>15 points</b>, clue 2 for <b>10</b>, clue 3 for <b>5</b>.</li>
+      <li>A wrong guess shows the next clue. You can also ask for it.</li>
+      <li>Still stuck after clue 3? Pick from <b>four options</b> for <b>2 points</b>.</li>
+    </ul>
+    <p>Spelling doesn't have to be perfect. New puzzles every day at midnight.</p>
+    <button class="btn primary" id="help-close">Got it</button>
+  </dialog>
+
+  <footer class="foot">
+    <p>This pilot records anonymous play data (no names or contact details) to see how the puzzles play.</p>
+  </footer>
+
+  <script src="puzzles.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
