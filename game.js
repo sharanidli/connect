@@ -168,7 +168,7 @@
       el('p', { class: 'tagline', text: `${cap(['', 'one', 'two', 'three', 'four'][SETS.length] || String(SETS.length))} puzzles today. In each one, three clues point to the same thing. Name it.` }),
     ]), el('ol', { class: 'rules' }, [
       el('li', { text: "Read clue 1 and type your guess. Spelling needn't be perfect." }),
-      el('li', { text: 'Not sure? Tap clue 2 for another hint, then clue 3.' }),
+      el('li', { text: 'Wrong guess? The next clue opens and you guess again.' }),
       el('li', {}, ['Fewer clues, more points: ', el('b', { text: '15' }), ', ', el('b', { text: '10' }), ' or ', el('b', { text: '5' }), '.']),
       el('li', {}, ['Still stuck after clue 3? Pick from four choices for ', el('b', { text: '2' }), ' points.']),
     ]), el('button', {
@@ -243,7 +243,7 @@
     log('guess', { guess: text.slice(0, 80), correct: right ? 1 : 0, ms_clue: Math.round(performance.now() - tClue) });
     if (right) return finishSet(state.clue, CONFIG.POINTS[state.clue - 1]);
     if (state.clue < 3) {
-      nextClue('wrong_guess', `Not quite. Here's clue ${state.clue + 1}.`);
+      nextClue('wrong_guess', `Not quite. Here's clue ${state.clue + 1}. Guess again.`);
     } else {
       showOptions('wrong_guess');
     }
