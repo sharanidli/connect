@@ -168,7 +168,7 @@
       el('p', { class: 'tagline', text: `Today's ${['', 'one', 'two', 'three', 'four'][SETS.length] || SETS.length} puzzles. The sooner you get it, the more you score.` }),
     ]), el('ul', { class: 'rules' }, [
       el('li', {}, ['Get it on clue 1 for ', el('b', { text: '15' }), ', clue 2 for ', el('b', { text: '10' }), ', clue 3 for ', el('b', { text: '5' }), '.']),
-      el('li', { text: 'A wrong guess shows the next clue.' }),
+      el('li', { text: 'Tap the next clue to open it. A wrong guess opens it too.' }),
       el('li', {}, ['Stuck after clue 3? Pick from four options for ', el('b', { text: '2' }), '.']),
     ]), el('button', {
       class: 'btn primary block', text: going ? 'Carry on' : "Play today's puzzles",
@@ -192,9 +192,17 @@
   function renderSet(feedback = '') {
     const set = SETS[state.setIdx];
     const worth = state.optionsShown ? CONFIG.OPTION_POINTS : CONFIG.POINTS[state.clue - 1];
-    const clues = set.clues.map((text, i) => i < state.clue
-      ? el('div', { class: 'clue' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text })])
-      : el('div', { class: 'clue locked' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text: `Worth ${CONFIG.POINTS[i]} if you need it` })]));
+    // Shown clues; the next hidden clue is a card you tap to open; later ones wait their turn.
+    const clues = set.clues.map((text, i) => {
+      if (i < state.clue) return el('div', { class: 'clue' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text })]);
+      if (i === state.clue && !state.optionsShown) {
+        return el('button', { class: 'clue locked next', type: 'button', onclick: () => nextClue('tapped_card') }, [
+          el('div', { class: 'label', text: `Clue ${i + 1}` }),
+          el('div', { text: `Tap to see it · worth ${CONFIG.POINTS[i]}` }),
+        ]);
+      }
+      return el('div', { class: 'clue locked' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text: `Opens after clue ${i}` })]);
+    });
     const kids = [
       el('div', { class: 'puzzle-head' }, [
         el('span', { class: 'muted', text: `Puzzle ${state.setIdx + 1} of ${SETS.length}` }),
@@ -212,9 +220,9 @@
       ]);
       kids.push(form);
       kids.push(el('div', { class: 'feedback', id: 'feedback', text: feedback }));
-      kids.push(state.clue < 3
-        ? el('button', { class: 'btn ghost block', text: `Show clue ${state.clue + 1} (worth ${CONFIG.POINTS[state.clue]})`, onclick: () => nextClue('asked') })
-        : el('button', { class: 'btn ghost block', text: `Show four options (worth ${CONFIG.OPTION_POINTS})`, onclick: () => showOptions('asked') }));
+      if (state.clue === 3) {
+        kids.push(el('button', { class: 'btn ghost block', text: `Show four options (worth ${CONFIG.OPTION_POINTS})`, onclick: () => showOptions('asked') }));
+      }
     }
     kids.push(el('div', { class: 'center' }, el('button', { class: 'link', text: 'Give up and see the answer', onclick: giveUp })));
     screen_(...kids);
