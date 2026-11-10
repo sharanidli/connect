@@ -166,10 +166,10 @@
       el('span', { class: 'date-chip', text: `${prettyDate(DAY.date)} · Day ${dayIdx + 1}` }),
       el('h1', { text: 'Three clues. One answer.' }),
       el('p', { class: 'tagline', text: `${cap(['', 'one', 'two', 'three', 'four'][SETS.length] || String(SETS.length))} puzzles today. In each one, three clues point to the same thing. Name it.` }),
-    ]), exampleCard(), el('ol', { class: 'rules' }, [
-      el('li', { text: "Read clue 1 and type your guess. Spelling doesn't have to be perfect." }),
+    ]), el('ol', { class: 'rules' }, [
+      el('li', { text: "Read clue 1 and type your guess. Spelling needn't be perfect." }),
       el('li', { text: 'Not sure? Tap clue 2 for another hint, then clue 3.' }),
-      el('li', {}, ['The fewer clues you need, the more you score: ', el('b', { text: '15' }), ', ', el('b', { text: '10' }), ' or ', el('b', { text: '5' }), ' points.']),
+      el('li', {}, ['Fewer clues, more points: ', el('b', { text: '15' }), ', ', el('b', { text: '10' }), ' or ', el('b', { text: '5' }), '.']),
       el('li', {}, ['Still stuck after clue 3? Pick from four choices for ', el('b', { text: '2' }), ' points.']),
     ]), el('button', {
       class: 'btn primary block', text: going ? 'Carry on' : "Play today's puzzles",
@@ -182,19 +182,6 @@
   }
 
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
-
-  // A made-up practice set (not from the puzzle bank) that shows how the clues work.
-  function exampleCard() {
-    return el('div', { class: 'example' }, [
-      el('div', { class: 'ex-head', text: 'For example' }),
-      el('div', { class: 'ex-clues' }, [
-        el('span', { class: 'ex-clue' }, [el('small', { text: 'Clue 1' }), 'Mumtaz']),
-        el('span', { class: 'ex-clue' }, [el('small', { text: 'Clue 2' }), 'Yamuna']),
-        el('span', { class: 'ex-clue' }, [el('small', { text: 'Clue 3' }), 'Agra']),
-      ]),
-      el('div', { class: 'ex-answer' }, ['Answer: ', el('b', { text: 'Taj Mahal' })]),
-    ]);
-  }
 
   function shuffledOptions(set) {
     // Same order every time for a given puzzle, so a reload doesn't reshuffle.
