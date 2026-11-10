@@ -82,20 +82,19 @@ h2 { font-size: 26px; }
 .clue.locked { background: var(--card); color: var(--muted); border-style: dashed; animation: none; }
 .clue.locked .label { color: var(--muted); }
 button.clue { display: block; width: 100%; text-align: left; font: inherit; }
-.clue.next {
-  cursor: pointer; color: var(--blue); border-color: var(--blue); background: #eef3fb;
-  font-weight: 600; -webkit-tap-highlight-color: transparent;
-}
-.clue.next .label { color: var(--blue); }
-.clue.next:active { transform: scale(0.99); background: #e2ebf8; }
+.clue.next { cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.clue.next .hint { font-size: 15px; }
+.clue.next:active { transform: scale(0.99); background: #eceef1; }
 @keyframes rise { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
 
 .guess { display: flex; gap: 8px; margin: 14px 0 8px; }
 .guess input {
-  flex: 1; min-width: 0; font: inherit; padding: 12px 14px; border-radius: 12px;
-  border: 1.5px solid var(--line); outline: none;
+  flex: 1; min-width: 0; font: inherit; font-size: 18px; padding: 14px 16px; border-radius: 12px;
+  border: 2.5px solid var(--ink); background: #fff; outline: none; min-height: 56px;
 }
-.guess input:focus { border-color: var(--blue); }
+.guess input::placeholder { color: #80868b; }
+.guess input:focus { border-color: var(--crimson); box-shadow: 0 0 0 4px rgba(176, 16, 58, 0.14); }
+.guess .btn { min-height: 56px; }
 .feedback { min-height: 24px; font-weight: 600; color: var(--crimson); }
 .shake { animation: shake 0.35s; }
 @keyframes shake { 20%, 60% { transform: translateX(-6px); } 40%, 80% { transform: translateX(6px); } }

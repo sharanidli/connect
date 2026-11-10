@@ -201,7 +201,7 @@
       if (i === state.clue && !state.optionsShown) {
         return el('button', { class: 'clue locked next', type: 'button', onclick: () => nextClue('tapped_card') }, [
           el('div', { class: 'label', text: `Clue ${i + 1}` }),
-          el('div', { text: `Tap to see it · worth ${CONFIG.POINTS[i]}` }),
+          el('div', { class: 'hint', text: `Tap to open · worth ${CONFIG.POINTS[i]}` }),
         ]);
       }
       return el('div', { class: 'clue locked' }, [el('div', { class: 'label', text: `Clue ${i + 1}` }), el('div', { text: `Opens after clue ${i}` })]);
@@ -218,7 +218,7 @@
       kids.push(el('p', { class: 'muted small', text: `Pick one for ${CONFIG.OPTION_POINTS} points.` }));
       kids.push(el('div', { class: 'options' }, shuffledOptions(set).map((o) => el('button', { class: 'option', text: o, onclick: () => pickOption(o) }))));
     } else {
-      const input = el('input', { type: 'text', id: 'guess', placeholder: 'Type your answer', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'go', 'aria-label': 'Your answer' });
+      const input = el('input', { type: 'text', id: 'guess', placeholder: 'Type your answer here', autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false', enterkeyhint: 'go', 'aria-label': 'Your answer' });
       const form = el('form', { class: 'guess', onsubmit: (e) => { e.preventDefault(); guess(input.value); } }, [
         input, el('button', { class: 'btn primary', type: 'submit', text: 'Guess' }),
       ]);
