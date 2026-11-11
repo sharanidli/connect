@@ -152,7 +152,7 @@
     const last = DAYS[DAYS.length - 1] && DAYS[DAYS.length - 1].date;
     const msg = first && today < first
       ? `The first puzzles go live on ${prettyDate(first)}. See you then!`
-      : 'That was the last day of the pilot. Thank you for playing!';
+      : 'New puzzles are on their way. Check back soon!';
     screen_(el('div', { class: 'hero' }, [
       el('h1', { text: 'Three clues. One answer.' }),
       el('p', { class: 'tagline', text: msg }),
@@ -367,7 +367,7 @@
     const next = DAYS[dayIdx + 1];
     const countdown = el('div', { class: 'countdown center' });
     function tick() {
-      if (!next || PREVIEW) { countdown.textContent = next ? '' : 'That was the last day of the pilot. Thank you for playing!'; return; }
+      if (!next || PREVIEW) { countdown.textContent = next ? '' : 'New puzzles are on their way. Check back soon!'; return; }
       const now = new Date();
       const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       const mins = Math.max(0, Math.round((midnight - now) / 60000));
