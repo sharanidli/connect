@@ -22,7 +22,12 @@
       </svg>
       <span class="wordmark">Connect</span>
     </div>
-    <button id="help-btn" class="icon-btn" aria-label="How to play">?</button>
+    <div class="actions">
+      <button id="stats-btn" class="icon-btn" aria-label="Your stats">
+        <svg viewBox="0 0 20 20" aria-hidden="true"><rect x="2.6" y="10" width="3.4" height="7.5" rx="1" fill="currentColor"/><rect x="8.3" y="3.5" width="3.4" height="14" rx="1" fill="currentColor"/><rect x="14" y="7" width="3.4" height="10.5" rx="1" fill="currentColor"/></svg>
+      </button>
+      <button id="help-btn" class="icon-btn" aria-label="How to play">?</button>
+    </div>
   </header>
 
   <main id="app" aria-live="polite"></main>
@@ -38,6 +43,12 @@
     </ol>
     <p>New puzzles every day at midnight.</p>
     <button class="btn primary" id="help-close">Got it</button>
+  </dialog>
+
+  <dialog id="stats" aria-labelledby="stats-title">
+    <h2 id="stats-title">Your stats</h2>
+    <div id="stats-body"></div>
+    <button class="btn primary" id="stats-close">Close</button>
   </dialog>
 
   <footer class="foot">

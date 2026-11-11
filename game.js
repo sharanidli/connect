@@ -313,9 +313,12 @@
     if (last) {
       state.done = true;
       state.score = state.results.reduce((s, r) => s + r.points, 0);
-      log('day_done', { score: state.score, ms_day: state.results.reduce((s, r) => s + r.ms, 0) });
     }
     save();
+    if (last) {
+      const st = computeStats();
+      log('day_done', { score: state.score, ms_day: state.results.reduce((s, r) => s + r.ms, 0), streak: st.streak, days_played: st.played });
+    }
     const verdict = result === 0 ? 'Not this time' : result === 4 ? `With the options · +${points}` : `Got it on clue ${result} · +${points}`;
     screen_(
       el('div', { class: 'puzzle-head' }, [el('span', { class: 'muted', text: `Puzzle ${setNo} of ${SETS.length}` }), el('span')]),
@@ -385,14 +388,81 @@
       el('div', { class: 'share-note', id: 'share-note' }),
       review,
       countdown,
+      el('div', { class: 'stats-card' }, [el('h2', { class: 'stats-title', text: 'Your stats' }), ...statsView()]),
     ]));
     if (revisit) log('results_view');
+  }
+
+  // ---------- stats (kept on this device only) ----------
+  // Built from the finished days saved in this browser. Preview plays have their own keys, so they
+  // only count in preview mode, where "today" is the day being previewed.
+  const STAT_ROWS = [[1, 'Clue 1'], [2, 'Clue 2'], [3, 'Clue 3'], [4, 'Four choices'], [0, 'Missed']];
+  function computeStats() {
+    const prefix = PREVIEW ? 'connect_day_preview_' : 'connect_day_';
+    const ref = PREVIEW && DAY ? DAY.date : today;
+    const rec = DAYS.map((d) => d.date).filter((d) => d <= ref).sort().map((date) => {
+      const s = store.get(prefix + date, null);
+      return s && s.done ? { date, score: s.score || 0, results: s.results || [] } : { date, score: null, results: [] };
+    });
+    const played = rec.filter((r) => r.score !== null);
+    let i = rec.length - 1;
+    if (i >= 0 && rec[i].date === ref && rec[i].score === null) i -= 1;   // today is still open
+    let streak = 0;
+    while (i >= 0 && rec[i].score !== null) { streak += 1; i -= 1; }
+    let best = 0, run = 0;
+    for (const r of rec) { run = r.score !== null ? run + 1 : 0; best = Math.max(best, run); }
+    const dist = { 1: 0, 2: 0, 3: 0, 4: 0, 0: 0 };
+    for (const r of played) for (const x of r.results) if (x.result in dist) dist[x.result] += 1;
+    const avg = played.length ? played.reduce((a, r) => a + r.score, 0) / played.length : null;
+    const first = rec.findIndex((r) => r.score !== null);
+    return { played: played.length, avg, streak, best, dist, recent: first < 0 ? [] : rec.slice(Math.max(first, rec.length - 7)) };
+  }
+
+  function statsView() {
+    const s = computeStats();
+    const per = MAX || 30;
+    const num = (v, label) => el('div', { class: 'stat' }, [el('div', { class: 'v', text: String(v) }), el('div', { class: 'k', text: label })]);
+    const kids = [el('div', { class: 'stat-nums' }, [
+      num(s.played, 'Days played'),
+      num(s.avg == null ? '–' : String(Math.round(s.avg * 10) / 10), `Average out of ${per}`),
+      num(s.streak, 'Streak'),
+      num(s.best, 'Best streak'),
+    ])];
+    if (!s.played) {
+      kids.push(el('p', { class: 'muted small center', text: "Finish a day's puzzles to start your stats." }));
+    } else {
+      const top = Math.max(1, ...Object.values(s.dist));
+      kids.push(el('div', { class: 'stat-h', text: 'How you solved them' }));
+      kids.push(el('div', { class: 'dist' }, STAT_ROWS.map(([k, label]) => {
+        const n = s.dist[k];
+        return el('div', { class: 'dist-row' }, [
+          el('span', { class: 'dist-k', text: label }),
+          el('span', { class: 'dist-track' }, el('span', { class: `dist-bar t${k}${n ? '' : ' zero'}`, style: n ? `width:${Math.round((100 * n) / top)}%` : null, text: String(n) })),
+        ]);
+      })));
+      kids.push(el('div', { class: 'stat-h', text: 'Recent days' }));
+      kids.push(el('div', { class: 'recent' }, s.recent.map((r) => el('div', { class: 'rc' }, [
+        el('span', { class: 'rc-v', text: r.score == null ? '–' : String(r.score) }),
+        el('span', { class: 'rc-track' }, el('span', { class: 'rc-bar', style: `height:${r.score ? Math.max(6, Math.round((100 * r.score) / per)) : 0}%` })),
+        el('span', { class: 'rc-d', text: prettyDate(r.date, { weekday: 'short' }) }),
+      ]))));
+    }
+    kids.push(el('p', { class: 'muted small center note', text: 'Saved on this device, in this browser.' }));
+    return kids;
   }
 
   // ---------- start ----------
   const help = $('#help');
   $('#help-btn').addEventListener('click', () => { help.showModal(); log('help'); });
   $('#help-close').addEventListener('click', () => help.close());
+  const statsDlg = $('#stats');
+  $('#stats-btn').addEventListener('click', () => {
+    const s = computeStats();
+    $('#stats-body').replaceChildren(...statsView());
+    statsDlg.showModal();
+    log('stats', { days_played: s.played, streak: s.streak });
+  });
+  $('#stats-close').addEventListener('click', () => statsDlg.close());
 
   document.addEventListener('visibilitychange', () => {
     log(document.visibilityState === 'hidden' ? 'hidden' : 'visible', { stage: !DAY ? 'none' : state.done ? 'results' : state.started ? 'playing' : 'landing' });
