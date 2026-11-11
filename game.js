@@ -7,7 +7,7 @@
   const CONFIG = {
     // Google Apps Script web-app URL that appends events to the tracking sheet.
     // Empty: events are only kept in the page (window.__connectEvents) for testing.
-    LOG_URL: '',
+    LOG_URL: 'https://script.google.com/macros/s/AKfycbz4IARH_FKu6qqVFurxrVTUqqNXzzt9u_VI-x8Qrr1I52M35N5Fx1L8mV9Grs17N3HC/exec',
     POINTS: [15, 10, 5],
     OPTION_POINTS: 2,
   };
