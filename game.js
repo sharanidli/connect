@@ -1,6 +1,8 @@
 /* Connect: two puzzles a day, three clues to one answer.
- * Puzzles come from puzzles.js (built by tools/build_puzzles.py). Every step of play is
- * logged as an anonymous event to a Google Sheet (see SETUP_TRACKING.md). */
+ * Puzzles come from puzzles.js (built by tools/build_puzzles.py), each day encrypted with its
+ * own key. The key comes from the Apps Script web app (?keys), which hands out keys only for
+ * days that have started in India, so changing the device date reveals nothing. Every step
+ * of play is logged as an anonymous event to a Google Sheet (see SETUP_TRACKING.md). */
 (() => {
   'use strict';
 
@@ -11,12 +13,12 @@
     POINTS: [15, 10, 5],
     OPTION_POINTS: 2,
   };
-  const KEY = 'three-clues-one-answer';            // must match tools/build_puzzles.py
+  const DAY1 = '2026-11-13';                       // official Day 1; earlier dates get no number
   const EMOJI = { 1: '🟩', 2: '🟨', 3: '🟧', 4: '🟦', 0: '⬛' };
   const HOW = { 1: 'Clue 1', 2: 'Clue 2', 3: 'Clue 3', 4: 'Options', 0: 'Missed' };
 
   const params = new URLSearchParams(location.search);
-  const PREVIEW = params.has('preview');           // editor preview: ?preview&day=2
+  const PREVIEW = params.has('preview');           // editor preview: ?preview&d=2026-11-15&k=<day key>
   const FROM = (params.get('from') || params.get('utm_source') || '').slice(0, 40);
 
   // ---------- small helpers ----------
@@ -49,11 +51,49 @@
     const [y, m, d] = iso.split('-').map(Number);
     return new Date(y, m - 1, d).toLocaleDateString('en-GB', opts);
   }
-  function unscramble(b64) {
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i) ^ KEY.charCodeAt(i % KEY.length);
-    return JSON.parse(new TextDecoder().decode(bytes));
+  function addDays(iso, n) {
+    const [y, m, d] = iso.split('-').map(Number);
+    return localDate(new Date(y, m - 1, d + n));
+  }
+  function dayNum(iso) {
+    const [y, m, d] = iso.split('-').map(Number);
+    const [a, b, c] = DAY1.split('-').map(Number);
+    return Math.round((Date.UTC(y, m - 1, d) - Date.UTC(a, b - 1, c)) / 864e5) + 1;
+  }
+
+  // ---------- day keys (see tools/build_puzzles.py) ----------
+  function b64bytes(s) {
+    const t = atob(s.replace(/-/g, '+').replace(/_/g, '/').replace(/\s+/g, ''));
+    return Uint8Array.from(t, (ch) => ch.charCodeAt(0));
+  }
+  async function decrypt(b64, keyBytes) {
+    const data = b64bytes(b64);
+    const k = await crypto.subtle.importKey('raw', keyBytes, { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']);
+    const out = new Uint8Array(data.length);
+    for (let i = 0; i * 32 < data.length; i++) {
+      const block = new Uint8Array(await crypto.subtle.sign('HMAC', k, new TextEncoder().encode(`ctr:${i}`)));
+      for (let j = 0; j < 32 && i * 32 + j < data.length; j++) out[i * 32 + j] = data[i * 32 + j] ^ block[j];
+    }
+    return JSON.parse(new TextDecoder().decode(out));
+  }
+  // The key for a date: from the editor's preview link, from this browser's cache, or from the
+  // web app, which only returns keys for days that have started in India. null = not open yet.
+  async function dayKey(date) {
+    if (PREVIEW && params.get('k')) return b64bytes(params.get('k'));
+    const cache = store.get('connect_keys', {}) || {};
+    if (cache[date]) return b64bytes(cache[date]);
+    if (!CONFIG.LOG_URL) return null;
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const r = await fetch(`${CONFIG.LOG_URL}?keys=1`, { signal: ctl.signal });
+      const j = await r.json();
+      Object.assign(cache, j.keys || {});
+      store.set('connect_keys', Object.fromEntries(Object.keys(cache).sort().slice(-14).map((d) => [d, cache[d]])));
+      return cache[date] ? b64bytes(cache[date]) : null;
+    } finally {
+      clearTimeout(timer);
+    }
   }
 
   // ---------- answer matching ----------
@@ -90,11 +130,15 @@
   // ---------- the day's puzzles ----------
   const DAYS = window.CONNECT_DAYS || [];
   const today = localDate();
-  let dayIdx = DAYS.findIndex((d) => d.date === today);
-  if (PREVIEW && params.get('day')) dayIdx = Math.min(DAYS.length, Math.max(1, +params.get('day'))) - 1;
+  let target = today;
+  if (PREVIEW && params.get('d')) target = params.get('d');
+  else if (PREVIEW && params.get('day')) target = addDays(DAY1, (Math.round(+params.get('day')) || 1) - 1);
+  const dayIdx = DAYS.findIndex((d) => d.date === target);
   const DAY = dayIdx >= 0 ? DAYS[dayIdx] : null;
-  const SETS = DAY ? unscramble(DAY.data) : [];
-  const MAX = SETS.length * CONFIG.POINTS[0];
+  const DAY_N = DAY ? dayNum(DAY.date) : 0;
+  const dayLabel = () => `${prettyDate(DAY.date)}${DAY_N >= 1 ? ` · Day ${DAY_N}` : ''}`;
+  let SETS = [];                       // filled once the day's key arrives
+  let MAX = 0;
   const STATE_KEY = DAY ? `connect_day_${PREVIEW ? 'preview_' : ''}${DAY.date}` : null;
   if (PREVIEW && params.has('reset') && STATE_KEY) store.set(STATE_KEY, null);
   let state = (STATE_KEY && store.get(STATE_KEY, null)) || { setIdx: 0, clue: 1, optionsShown: false, guesses: [], results: [], started: false, done: false };
@@ -128,7 +172,7 @@
     const set = SETS[state.setIdx];
     const payload = {
       app: 'connect', v: 1, ts: new Date().toISOString(), player, session, visit_n: visitN, event,
-      day: DAY ? DAY.date : '', day_n: dayIdx + 1, preview: PREVIEW ? 1 : 0,
+      day: DAY ? DAY.date : '', day_n: DAY_N, preview: PREVIEW ? 1 : 0,
       set_no: set ? state.setIdx + 1 : '', set_id: set ? set.id : '',
       clue: set ? state.clue : '', ms_session: Math.round(performance.now() - t0),
       from: FROM, ref: refHost, tz, lang: navigator.language || '', device, os, browser,
@@ -160,10 +204,28 @@
     log('open', { status: first && today < first ? 'before_start' : 'after_end', last_day: last || '' });
   }
 
+  function renderLocked() {
+    screen_(el('div', { class: 'hero' }, [
+      el('span', { class: 'date-chip', text: dayLabel() }),
+      el('h1', { text: 'Three clues. One answer.' }),
+      el('p', { class: 'tagline', text: 'These puzzles open at midnight India time. Check back soon!' }),
+    ]));
+    log('open', { status: 'locked' });
+  }
+
+  function renderKeyError() {
+    screen_(el('div', { class: 'hero' }, [
+      el('h1', { text: 'Three clues. One answer.' }),
+      el('p', { class: 'tagline', text: "Couldn't load today's puzzles. Check your connection and try again." }),
+      el('button', { class: 'btn primary', text: 'Try again', onclick: () => location.reload() }),
+    ]));
+    log('open', { status: 'key_error' });
+  }
+
   function renderLanding() {
     const going = state.started && !state.done;
     screen_(el('div', { class: 'hero' }, [
-      el('span', { class: 'date-chip', text: `${prettyDate(DAY.date)} · Day ${dayIdx + 1}` }),
+      el('span', { class: 'date-chip', text: dayLabel() }),
       el('h1', { text: 'Three clues. One answer.' }),
       el('p', { class: 'tagline', text: `${cap(['', 'one', 'two', 'three', 'four'][SETS.length] || String(SETS.length))} puzzles today. In each one, three clues point to the same thing. Name it.` }),
     ]), el('ol', { class: 'rules' }, [
@@ -378,7 +440,7 @@
     }
     tick(); setInterval(tick, 30000);
     screen_(el('div', { class: 'center' }, [
-      el('span', { class: 'date-chip', text: `${prettyDate(DAY.date)} · Day ${dayIdx + 1}` }),
+      el('span', { class: 'date-chip', text: dayLabel() }),
       el('div', { class: 'score', text: `${state.score}/${MAX}` }),
       el('div', { class: 'tiles' }, state.results.map((r, i) => el('button', { class: `tile t${r.result}`, onclick: () => showReview(i) }, [
         el('div', { class: 'n', text: `Puzzle ${i + 1}` }), el('div', { class: 'how', text: HOW[r.result] }),
@@ -469,7 +531,15 @@
   });
 
   if (!DAY) { renderNoPuzzle(); return; }
-  log('open', { status: state.done ? 'done' : state.started ? 'in_progress' : 'new', visits: visitN });
-  if (state.done) renderResults(true);
-  else renderLanding();
+  screen_(el('div', { class: 'hero' }, [el('p', { class: 'tagline', text: "Loading today's puzzles..." })]));
+  (async () => {
+    let key;
+    try { key = await dayKey(DAY.date); } catch (e) { renderKeyError(); return; }
+    if (!key) { renderLocked(); return; }
+    try { SETS = await decrypt(DAY.data, key); } catch (e) { renderKeyError(); return; }
+    MAX = SETS.length * CONFIG.POINTS[0];
+    log('open', { status: state.done ? 'done' : state.started ? 'in_progress' : 'new', visits: visitN });
+    if (state.done) renderResults(true);
+    else renderLanding();
+  })();
 })();
