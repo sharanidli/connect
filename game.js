@@ -141,7 +141,10 @@
   let MAX = 0;
   const STATE_KEY = DAY ? `connect_day_${PREVIEW ? 'preview_' : ''}${DAY.date}` : null;
   if (PREVIEW && params.has('reset') && STATE_KEY) store.set(STATE_KEY, null);
-  let state = (STATE_KEY && store.get(STATE_KEY, null)) || { setIdx: 0, clue: 1, optionsShown: false, guesses: [], results: [], started: false, done: false };
+  const REV = DAY ? DAY.rev || 1 : 1;  // bumped when a day's puzzles are replaced after it went live
+  const newState = () => ({ rev: REV, setIdx: 0, clue: 1, optionsShown: false, guesses: [], results: [], started: false, done: false });
+  let state = (STATE_KEY && store.get(STATE_KEY, null)) || newState();
+  if ((state.rev || 1) !== REV) state = newState();   // saved progress was on puzzles that have since been replaced
   const save = () => STATE_KEY && store.set(STATE_KEY, state);
 
   // ---------- player and session ----------
@@ -172,7 +175,7 @@
     const set = SETS[state.setIdx];
     const payload = {
       app: 'connect', v: 1, ts: new Date().toISOString(), player, session, visit_n: visitN, event,
-      day: DAY ? DAY.date : '', day_n: DAY_N, preview: PREVIEW ? 1 : 0,
+      day: DAY ? DAY.date : '', day_n: DAY_N, rev: REV, preview: PREVIEW ? 1 : 0,
       set_no: set ? state.setIdx + 1 : '', set_id: set ? set.id : '',
       clue: set ? state.clue : '', ms_session: Math.round(performance.now() - t0),
       from: FROM, ref: refHost, tz, lang: navigator.language || '', device, os, browser,
