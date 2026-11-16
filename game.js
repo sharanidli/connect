@@ -208,7 +208,7 @@
 
   // ---------- screens ----------
   const app = $('#app');
-  function screen_(...kids) { app.replaceChildren(...kids); window.scrollTo(0, 0); }
+  function screen_(...kids) { app.replaceChildren(...kids.filter((c) => c != null && c !== false)); window.scrollTo(0, 0); }
 
   function renderNoPuzzle() {
     const first = DAYS[0] && DAYS[0].date;
