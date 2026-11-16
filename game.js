@@ -19,6 +19,8 @@
 
   const params = new URLSearchParams(location.search);
   const PREVIEW = params.has('preview');           // editor preview: ?preview&d=2026-11-15&k=<day key>
+  // Private archive link (?archive=CODE): lists past days; the web app checks the code.
+  const ARCHIVE = /^[A-Za-z0-9]{4,40}$/.test(params.get('archive') || '') ? params.get('archive') : '';
   const FROM = (params.get('from') || params.get('utm_source') || '').slice(0, 40);
 
   // ---------- small helpers ----------
@@ -78,22 +80,28 @@
   }
   // The key for a date: from the editor's preview link, from this browser's cache, or from the
   // web app, which only returns keys for days that have started in India. null = not open yet.
+  async function fetchKeys() {
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), 12000);
+    try {
+      const q = ARCHIVE ? `&archive=${encodeURIComponent(ARCHIVE)}` : '';
+      const r = await fetch(`${CONFIG.LOG_URL}?keys=1${q}`, { signal: ctl.signal });
+      const j = await r.json();
+      const cache = store.get('connect_keys', {}) || {};
+      Object.assign(cache, j.keys || {});
+      store.set('connect_keys', Object.fromEntries(Object.keys(cache).sort().slice(-90).map((d) => [d, cache[d]])));
+      return j;
+    } finally {
+      clearTimeout(timer);
+    }
+  }
   async function dayKey(date) {
     if (PREVIEW && params.get('k')) return b64bytes(params.get('k'));
     const cache = store.get('connect_keys', {}) || {};
     if (cache[date]) return b64bytes(cache[date]);
     if (!CONFIG.LOG_URL) return null;
-    const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), 12000);
-    try {
-      const r = await fetch(`${CONFIG.LOG_URL}?keys=1`, { signal: ctl.signal });
-      const j = await r.json();
-      Object.assign(cache, j.keys || {});
-      store.set('connect_keys', Object.fromEntries(Object.keys(cache).sort().slice(-14).map((d) => [d, cache[d]])));
-      return cache[date] ? b64bytes(cache[date]) : null;
-    } finally {
-      clearTimeout(timer);
-    }
+    const j = await fetchKeys();
+    return j.keys && j.keys[date] ? b64bytes(j.keys[date]) : null;
   }
 
   // ---------- answer matching ----------
@@ -133,15 +141,23 @@
   let target = today;
   if (PREVIEW && params.get('d')) target = params.get('d');
   else if (PREVIEW && params.get('day')) target = addDays(DAY1, (Math.round(+params.get('day')) || 1) - 1);
+  else if (ARCHIVE && /^\d{4}-\d{2}-\d{2}$/.test(params.get('d') || '')) target = params.get('d');
   const dayIdx = DAYS.findIndex((d) => d.date === target);
   const DAY = dayIdx >= 0 ? DAYS[dayIdx] : null;
   const DAY_N = DAY ? dayNum(DAY.date) : 0;
   const dayLabel = () => `${prettyDate(DAY.date)}${DAY_N >= 1 ? ` · Day ${DAY_N}` : ''}`;
   let SETS = [];                       // filled once the day's key arrives
   let MAX = 0;
-  const STATE_KEY = DAY ? `connect_day_${PREVIEW ? 'preview_' : ''}${DAY.date}` : null;
-  if (PREVIEW && params.has('reset') && STATE_KEY) store.set(STATE_KEY, null);
   const REV = DAY ? DAY.rev || 1 : 1;  // bumped when a day's puzzles are replaced after it went live
+  // A past day opened from the archive: its own saved progress, which never counts in the stats,
+  // unless the player finished that day when it was live (then show that result).
+  const PAST = !!(ARCHIVE && !PREVIEW && DAY && DAY.date !== today);
+  const liveSaved = DAY ? store.get(`connect_day_${DAY.date}`, null) : null;
+  const STATE_KEY = !DAY ? null
+    : PAST && !(liveSaved && liveSaved.done && (liveSaved.rev || 1) === REV) ? `connect_day_archive_${DAY.date}`
+      : `connect_day_${PREVIEW ? 'preview_' : ''}${DAY.date}`;
+  if (PREVIEW && params.has('reset') && STATE_KEY) store.set(STATE_KEY, null);
+  const archiveUrl = (date) => `${location.pathname}?archive=${encodeURIComponent(ARCHIVE)}${date ? `&d=${date}` : ''}`;
   const newState = () => ({ rev: REV, setIdx: 0, clue: 1, optionsShown: false, guesses: [], results: [], started: false, done: false });
   let state = (STATE_KEY && store.get(STATE_KEY, null)) || newState();
   if ((state.rev || 1) !== REV) state = newState();   // saved progress was on puzzles that have since been replaced
@@ -179,7 +195,7 @@
       set_no: set ? state.setIdx + 1 : '', set_id: set ? set.id : '',
       clue: set ? state.clue : '', ms_session: Math.round(performance.now() - t0),
       from: FROM, ref: refHost, tz, lang: navigator.language || '', device, os, browser,
-      screen: `${screen.width}x${screen.height}`, ...data,
+      screen: `${screen.width}x${screen.height}`, ...(ARCHIVE ? { archive: ARCHIVE } : {}), ...data,
     };
     window.__connectEvents.push(payload);
     if (!CONFIG.LOG_URL) return;
@@ -219,7 +235,7 @@
   function renderKeyError() {
     screen_(el('div', { class: 'hero' }, [
       el('h1', { text: 'Three clues. One answer.' }),
-      el('p', { class: 'tagline', text: "Couldn't load today's puzzles. Check your connection and try again." }),
+      el('p', { class: 'tagline', text: "Couldn't load the puzzles. Check your connection and try again." }),
       el('button', { class: 'btn primary', text: 'Try again', onclick: () => location.reload() }),
     ]));
     log('open', { status: 'key_error' });
@@ -230,20 +246,55 @@
     screen_(el('div', { class: 'hero' }, [
       el('span', { class: 'date-chip', text: dayLabel() }),
       el('h1', { text: 'Three clues. One answer.' }),
-      el('p', { class: 'tagline', text: `${cap(['', 'one', 'two', 'three', 'four'][SETS.length] || String(SETS.length))} puzzles today. In each one, three clues point to the same thing. Name it.` }),
+      el('p', { class: 'tagline', text: `${cap(['', 'one', 'two', 'three', 'four'][SETS.length] || String(SETS.length))} puzzles${PAST ? '' : ' today'}. In each one, three clues point to the same thing. Name it.` }),
     ]), el('ol', { class: 'rules' }, [
       el('li', { text: "Read clue 1 and type your guess. Spelling needn't be perfect." }),
       el('li', { text: 'Wrong guess? The next clue opens and you guess again.' }),
       el('li', {}, ['Fewer clues, more points: ', el('b', { text: '15' }), ', ', el('b', { text: '10' }), ' or ', el('b', { text: '5' }), '.']),
       el('li', {}, ['Still stuck after clue 3? Pick from four choices for ', el('b', { text: '2' }), ' points.']),
     ]), el('button', {
-      class: 'btn primary block', text: going ? 'Carry on' : "Play today's puzzles",
+      class: 'btn primary block', text: going ? 'Carry on' : PAST ? 'Play these puzzles' : "Play today's puzzles",
       onclick: () => {
         if (!state.started) { state.started = true; save(); log('start'); }
         tSet = performance.now(); tClue = performance.now();
         renderSet();
       },
-    }));
+    }), PAST ? el('p', { class: 'center' }, el('a', { class: 'link', href: archiveUrl(), text: 'Back to the archive' })) : null);
+  }
+
+  // ---------- private archive: every past day, newest first ----------
+  async function renderArchive() {
+    screen_(el('div', { class: 'hero' }, [el('p', { class: 'tagline', text: 'Loading the archive...' })]));
+    let j;
+    try { j = await fetchKeys(); } catch (e) { renderKeyError(); return; }
+    if (!j.archive) {
+      screen_(el('div', { class: 'hero' }, [
+        el('h1', { text: 'Connect archive' }),
+        el('p', { class: 'tagline', text: "This archive link isn't active. Ask the person who sent it for a new one." }),
+        el('a', { class: 'btn primary', href: location.pathname, text: "Play today's puzzles" }),
+      ]));
+      log('archive_open', { status: 'invalid' });
+      return;
+    }
+    const open = DAYS.filter((d) => d.date >= DAY1 && j.keys[d.date]).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const rows = open.map((d) => {
+      const live = store.get(`connect_day_${d.date}`, null), later = store.get(`connect_day_archive_${d.date}`, null);
+      const fresh = (x) => x && (x.rev || 1) === (d.rev || 1);
+      const isToday = d.date === today;
+      const status = fresh(live) && live.done ? `${live.score}/${d.n * CONFIG.POINTS[0]}`
+        : fresh(later) && later.done ? `${later.score}/${d.n * CONFIG.POINTS[0]}`
+          : (fresh(live) && live.started) || (fresh(later) && later.started) ? 'Carry on' : 'Play';
+      return el('a', { class: 'arc-row', href: isToday ? location.pathname : archiveUrl(d.date) }, [
+        el('span', { class: 'arc-day', text: isToday ? 'Today' : `Day ${dayNum(d.date)}` }),
+        el('span', { class: 'arc-date', text: prettyDate(d.date, { weekday: 'short', day: 'numeric', month: 'short' }) }),
+        el('span', { class: `arc-status${/\//.test(status) ? ' done' : ''}`, text: status }),
+      ]);
+    });
+    screen_(el('div', { class: 'hero' }, [
+      el('h1', { text: 'Connect archive' }),
+      el('p', { class: 'tagline', text: 'Every day so far. Archive plays are kept apart from your daily stats and streak.' }),
+    ]), el('div', { class: 'arc-list' }, rows));
+    log('archive_open', { status: 'ok', days_listed: open.length });
   }
 
   function cap(s) { return s.charAt(0).toUpperCase() + s.slice(1); }
@@ -435,7 +486,7 @@
     const next = DAYS[dayIdx + 1];
     const countdown = el('div', { class: 'countdown center' });
     function tick() {
-      if (!next || PREVIEW) { countdown.textContent = next ? '' : 'New puzzles are on their way. Check back soon!'; return; }
+      if (!next || PREVIEW || PAST) { countdown.textContent = next || PAST ? '' : 'New puzzles are on their way. Check back soon!'; return; }
       const now = new Date();
       const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
       const mins = Math.max(0, Math.round((midnight - now) / 60000));
@@ -453,7 +504,9 @@
       el('div', { class: 'share-note', id: 'share-note' }),
       review,
       countdown,
-      el('div', { class: 'stats-card' }, [el('h2', { class: 'stats-title', text: 'Your stats' }), ...statsView()]),
+      PAST ? el('p', { class: 'center' }, el('a', { class: 'btn ghost', href: archiveUrl(), text: 'Back to the archive' })) : null,
+      PAST ? el('p', { class: 'muted small center', text: 'Archive plays are kept apart from your daily stats and streak.' })
+        : el('div', { class: 'stats-card' }, [el('h2', { class: 'stats-title', text: 'Your stats' }), ...statsView()]),
     ]));
     if (revisit) log('results_view');
   }
@@ -533,8 +586,9 @@
     log(document.visibilityState === 'hidden' ? 'hidden' : 'visible', { stage: !DAY ? 'none' : state.done ? 'results' : state.started ? 'playing' : 'landing' });
   });
 
+  if (ARCHIVE && !params.get('d')) { renderArchive(); return; }
   if (!DAY) { renderNoPuzzle(); return; }
-  screen_(el('div', { class: 'hero' }, [el('p', { class: 'tagline', text: "Loading today's puzzles..." })]));
+  screen_(el('div', { class: 'hero' }, [el('p', { class: 'tagline', text: PAST ? 'Loading the puzzles...' : "Loading today's puzzles..." })]));
   (async () => {
     let key;
     try { key = await dayKey(DAY.date); } catch (e) { renderKeyError(); return; }
