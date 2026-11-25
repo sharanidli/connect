@@ -122,18 +122,22 @@
     }
     return prev[b.length];
   }
-  function isRight(guess, set) {
+  function matchesAny(guess, list, contain) {
     const g = norm(guess);
     if (!g) return false;
-    for (const raw of [set.answer, ...set.accept]) {
+    for (const raw of list) {
       const a = norm(raw);
       if (!a) continue;
       if (g === a || g.replace(/ /g, '') === a.replace(/ /g, '')) return true;
       if (a.length >= 5 && lev(g, a) <= (a.length >= 9 ? 2 : 1)) return true;
-      if (a.length >= 6 && ` ${g} `.includes(` ${a} `)) return true;   // "kipling's jungle book"
+      if (contain && a.length >= 6 && ` ${g} `.includes(` ${a} `)) return true;   // "kipling's jungle book"
     }
     return false;
   }
+  const isRight = (guess, set) => matchesAny(guess, [set.answer, ...set.accept], true);
+  // On the right track but too vague (the category, the city, the maker): one nudge per puzzle.
+  // No containment here, so "mysore palace" is not a near miss for a garden near Mysore.
+  const isNear = (guess, set) => matchesAny(guess, set.near || [], false);
 
   // ---------- the day's puzzles ----------
   const DAYS = window.CONNECT_DAYS || [];
@@ -158,7 +162,7 @@
       : `connect_day_${PREVIEW ? 'preview_' : ''}${DAY.date}`;
   if (PREVIEW && params.has('reset') && STATE_KEY) store.set(STATE_KEY, null);
   const archiveUrl = (date) => `${location.pathname}?archive=${encodeURIComponent(ARCHIVE)}${date ? `&d=${date}` : ''}`;
-  const newState = () => ({ rev: REV, setIdx: 0, clue: 1, optionsShown: false, guesses: [], results: [], started: false, done: false });
+  const newState = () => ({ rev: REV, setIdx: 0, clue: 1, optionsShown: false, nudged: false, guesses: [], results: [], started: false, done: false });
   let state = (STATE_KEY && store.get(STATE_KEY, null)) || newState();
   if ((state.rev || 1) !== REV) state = newState();   // saved progress was on puzzles that have since been replaced
   const save = () => STATE_KEY && store.set(STATE_KEY, state);
@@ -250,6 +254,7 @@
     ]), el('ol', { class: 'rules' }, [
       el('li', { text: "Read clue 1 and type your guess. Spelling needn't be perfect." }),
       el('li', { text: 'Wrong guess? The next clue opens and you guess again.' }),
+      el('li', { text: "Close but too vague? Once per puzzle you'll get a nudge to be more specific, with no points lost." }),
       el('li', {}, ['Fewer clues, more points: ', el('b', { text: '15' }), ', ', el('b', { text: '10' }), ' or ', el('b', { text: '5' }), '.']),
       el('li', {}, ['Still stuck after clue 3? Pick from four choices for ', el('b', { text: '2' }), ' points.']),
     ]), el('button', {
@@ -314,7 +319,9 @@
     return el('div', { class: `clue ${cls}` }, [
       el('div', { class: 'label', text: `Clue ${i + 1}` }),
       el('div', { text }),
-      ...misses.map((g) => el('div', { class: 'miss', text: `\u2717 ${g.text}` })),
+      ...misses.map((g) => (g.near
+        ? el('div', { class: 'miss near', text: `\u2248 ${g.text} \u00b7 close` })
+        : el('div', { class: 'miss', text: `\u2717 ${g.text}` }))),
     ]);
   }
 
@@ -324,7 +331,7 @@
     go(); setTimeout(go, 350);
   }
 
-  function renderSet(feedback = '') {
+  function renderSet(feedback = '', tone = '') {
     const set = SETS[state.setIdx];
     const worth = state.optionsShown ? CONFIG.OPTION_POINTS : CONFIG.POINTS[state.clue - 1];
     // Opened clues first, then the answer box right under the newest clue, then the clues still to come.
@@ -360,7 +367,7 @@
         input, el('button', { class: 'btn primary', type: 'submit', text: 'Guess' }),
       ]);
       kids.push(form);
-      kids.push(el('div', { class: 'feedback', id: 'feedback', text: feedback }));
+      kids.push(el('div', { class: `feedback${tone ? ` ${tone}` : ''}`, id: 'feedback', role: 'status', text: feedback }));
       kids.push(...upcoming);
       if (state.clue === 3) {
         kids.push(el('button', { class: 'btn ghost block', text: `Show four options (worth ${CONFIG.OPTION_POINTS})`, onclick: () => showOptions('asked') }));
@@ -378,10 +385,17 @@
     const set = SETS[state.setIdx];
     if (!text.trim()) { $('#guess').focus(); return; }
     const right = isRight(text, set);
-    state.guesses.push({ clue: state.clue, text: text.slice(0, 80), right });
+    const near = !right && !state.nudged && isNear(text, set);
+    state.guesses.push({ clue: state.clue, text: text.slice(0, 80), right, ...(near ? { near: true } : {}) });
+    if (near) state.nudged = true;
     save();
-    log('guess', { guess: text.slice(0, 80), correct: right ? 1 : 0, ms_clue: Math.round(performance.now() - tClue) });
+    log('guess', { guess: text.slice(0, 80), correct: right ? 1 : 0, ...(near ? { near: 1 } : {}), ms_clue: Math.round(performance.now() - tClue) });
     if (right) return finishSet(state.clue, CONFIG.POINTS[state.clue - 1]);
+    if (near) {   // same clue, same points, one more try
+      renderSet('Close! Can you be more specific?', 'near');
+      const inp = $('#guess'); if (inp) inp.focus();
+      return;
+    }
     if (state.clue < 3) {
       nextClue('wrong_guess', `Not quite. Here's clue ${state.clue + 1}. Guess again.`);
     } else {
@@ -424,7 +438,7 @@
     state.results.push({ id: set.id, result, points, guesses: state.guesses, ms: msSet });
     log('set_done', { result: HOW[result], points, guesses_n: state.guesses.length, ms_set: msSet });
     const setNo = state.setIdx + 1;
-    state.setIdx += 1; state.clue = 1; state.optionsShown = false; state.guesses = [];
+    state.setIdx += 1; state.clue = 1; state.optionsShown = false; state.guesses = []; state.nudged = false;
     const last = state.setIdx >= SETS.length;
     if (last) {
       state.done = true;
